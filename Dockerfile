@@ -1,10 +1,7 @@
-FROM alpine:3.6
-MAINTAINER Markku Virtanen
+FROM alpine:3.18 as builder
+LABEL maintainer="Markku Virtanen"
 
-ENV VERSION_BEANSTALKD="1.10"
-
-RUN addgroup -S beanstalkd && adduser -S -G beanstalkd beanstalkd
-RUN apk add --no-cache tini 'su-exec>=0.2'
+ENV VERSION_BEANSTALKD="1.13"
 
 RUN apk --update add --virtual build-dependencies \
   gcc \
@@ -13,12 +10,16 @@ RUN apk --update add --virtual build-dependencies \
   curl \
   && curl -sL https://github.com/kr/beanstalkd/archive/v$VERSION_BEANSTALKD.tar.gz | tar xvz -C /tmp \
   && cd /tmp/beanstalkd-$VERSION_BEANSTALKD \
-  && sed -i "s|#include <sys/fcntl.h>|#include <fcntl.h>|g" sd-daemon.c \
   && make \
-  && cp beanstalkd /usr/bin \
-  && apk del build-dependencies \
-  && rm -rf /tmp/* \
-  && rm -rf /var/cache/apk/*
+  && cp beanstalkd /usr/bin
+
+FROM alpine:3.18
+LABEL maintainer="Markku Virtanen"
+
+RUN addgroup -S beanstalkd && adduser -S -G beanstalkd beanstalkd
+RUN apk add --no-cache tini 'su-exec>=0.2'
+
+COPY --from=builder /usr/bin/beanstalkd /usr/bin/beanstalkd
   
 RUN mkdir /data && chown beanstalkd:beanstalkd /data
 VOLUME ["/data"]
